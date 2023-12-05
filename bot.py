@@ -41,7 +41,6 @@ async def book_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Got a request to update the book log")
 
     try:
-
         # unpack input
         info_joined = " ".join(context.args)
         info = [x.strip() for x in info_joined.split(";")]
@@ -225,6 +224,82 @@ async def film(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(type(e).__name__)
         await update.message.reply_text("Something went wrong. Try again")
 
+async def show(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Got a show request")
+    try:
+        #get date
+        date = get_date()
+
+        # unpack input
+        info_joined = " ".join(context.args)
+        info = [x.strip() for x in info_joined.split(";")]    
+
+        title = info[0]
+        range_start = int(info[1])
+        range_end = int(info[2])
+        length = info[3]
+        season = info[4]
+        language = info[5]
+        show_id = None
+
+        # calculate how many episodes were watched
+        num_watched = range_end - range_start + 1
+
+        # check if a show exists and if yes, get id 
+        check = send_query("SELECT show_id FROM shows.show WHERE title = %s;",(title,))
+        if check == []:
+            logger.info("This is a new show")
+
+            # insert a new row into the show table
+            send_query("INSERT INTO shows.show (title) VALUES (%s)",(title,))
+
+            # get the new id
+            show_id = send_query("SELECT show_id FROM shows.show WHERE title = %s;",(title,))[0][0]
+        else:
+            logger.info("This show already exists")
+            show_id = check[0][0]
+
+        # insert new rows
+        logger.info(f"Start processing {num_watched} episodes")
+        for episode in range(range_start, range_end +1):
+            # check if this episode exists in the episode table
+            check = send_query("SELECT episode_id FROM shows.episode WHERE show_id = %s and season = %s and episode_num = %s", (show_id, season, episode))
+
+            if check == []:
+                logger.info("This episode doesn't already exists, going to insert it")
+                # episode doesn't yet exist, must be inserted
+                send_query("INSERT INTO shows.episode (show_id, season, episode_num, length) VALUES (%s, %s, %s, %s)", (show_id, season, episode, length))
+
+                # get the new episode's id
+                ep_id = send_query("SELECT episode_id FROM shows.episode WHERE show_id = %s and season = %s and episode_num = %s", (show_id, season, episode))[0][0]
+            else:
+                logger.info("This episode already exists")
+                ep_id = check[0][0]
+
+            # isert a row with the episode into shows_log
+            send_query("INSERT INTO shows.shows_log (date, episode_id, language) VALUES (%s, %s, %s)", (date, ep_id, language))
+            logger.info("Inserted a row into shows_log")
+    except Exception as e:
+        logger.error(type(e).__name__)
+        await update.message.reply_text(f"Something went wrong. Try again. Error: {type(e).__name__}")
+
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("""
+            List of commands and their input formats:
+            /book - add a new book then send epub file
+            Input: title; author; series(pass none if none)
+            /blog - add a books_log entry
+            Input: title; status
+            /book_end - to rate and comment finished book
+            Input: rating; comment
+            /film - add film info or update log
+            Input: title; language; length(only for new films)
+            /check - check if a film is aready in the database
+            Input: title
+            /show - process show data after watching some episodes
+            Input: title; episode_number_start; episode_number_end; length; season; language
+""")
+
 if __name__ == "__main__":
     # set higher logging level for httpx to avoid all GET and POST requests being logged
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -255,6 +330,9 @@ if __name__ == "__main__":
     # handle book rating and comment
     end_book_handler = CommandHandler("book_end", book_end)
 
+    # handle shows input
+    shows_handler = CommandHandler("show", show)
+
     # help handler
     help_handler = CommandHandler("help",help)
 
@@ -265,5 +343,6 @@ if __name__ == "__main__":
     bot.add_handler(film_handler)
     bot.add_handler(check_film_handler)
     bot.add_handler(help_handler)
+    bot.add_handler(shows_handler)
 
     bot.run_polling()
