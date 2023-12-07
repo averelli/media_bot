@@ -207,7 +207,7 @@ async def film(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info("Inserted values into the film table")
             
             # get the new film_id
-            film_id = send_query("SELECT film_id FROM films.film WHERE title = %s;",(title,))
+            film_id = send_query("SELECT film_id FROM films.film WHERE title = %s;",(title,))[0][0]
             logger.info("Got the new film_id")
 
         else:
