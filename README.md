@@ -5,7 +5,7 @@ Telegram bot to update my database. Can be used to track tv shows, films and boo
 
 1. Add a new book to the database using /book. Provide title; author; seriese after the command
 2. Send a epub of that book to count words. No commnad needed, just the file
-3. Insert data into the reading log table using command /blog. After the command provide a title and a reading status: s - started, c - continued, f - finished, b - binged in a day.
+3. Insert data into the reading log table using command /blog. After the command provide a title and a reading status: s - started, c - continued, f - finished, b - binged in a day. After the status, provide the total percent of the book read, no matter how much was read in that day. The difference between the provided total and the previous one will be calculated automatically.
 4. If the book is finished, use /book_end to rate the book and provide a comment.
 
 ## Tracking films
