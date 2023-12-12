@@ -55,13 +55,13 @@ async def book_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status = "binged" if info[1] == "b" else "started" if info[1] == "s" else "continued" if info[1] == "c" else "finished"
         
         # get percent read
-        percent_read = int(context.args[1]) 
+        percent_read = int(info[1]) 
         
         # calculate percent delta to insert
         if status == "continued" or status == "finished":
             logger.info("Sent query to calculate the percentage delta")
             total_percent = send_query("SELECT SUM(percentage) OVER (PARTITION BY book_id ORDER BY date) FROM reading.books_log ORDER BY date desc LIMIT 1;")[0][0]
-            insert_percent = percent_read - total_percent
+            insert_percent = percent_read - int(total_percent)
         else:
             insert_percent = percent_read
 
