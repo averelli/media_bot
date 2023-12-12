@@ -53,14 +53,26 @@ async def book_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # get the status 
         status = "binged" if info[1] == "b" else "started" if info[1] == "s" else "continued" if info[1] == "c" else "finished"
+        
+        # get percent read
+        percent_read = int(context.args[1]) 
+        
+        # calculate percent delta to insert
+        if status == "continued" or status == "finished":
+            logger.info("Sent query to calculate the percentage delta")
+            total_percent = send_query("SELECT SUM(percentage) OVER (PARTITION BY book_id ORDER BY date) FROM reading.books_log ORDER BY date desc LIMIT 1;")[0][0]
+            insert_percent = percent_read - total_percent
+        else:
+            insert_percent = percent_read
+
         # get the book id
         book_id = send_query("SELECT book_id FROM reading.book WHERE title = %s;",(title,))[0][0]
         logger.info("Got the book_id")
 
         # insert values into the log
         send_query(
-            "INSERT INTO reading.books_log (date, book_id, status) VALUES (%s, %s, %s)",
-            (date, book_id, status)
+            "INSERT INTO reading.books_log (date, book_id, status, percentage) VALUES (%s, %s, %s, %s)",
+            (date, book_id, status, insert_percent)
         )
         logger.info("Inserted into the book log")
         
@@ -289,7 +301,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
             /book - add a new book then send epub file
             Input: title; author; series(pass none if none)
             /blog - add a books_log entry
-            Input: title; status
+            Input: title; status; percent read (total)
             /book_end - to rate and comment finished book
             Input: rating; comment
             /film - add film info or update log
