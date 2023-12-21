@@ -42,6 +42,7 @@ def send_query(query, values = None):
             # if there was an error, rollback any changes
             logger.error(type(e).__name__)
             conn.rollback()
+            raise Exception
             
     # close connection and return response
     conn.close()
