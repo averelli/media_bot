@@ -55,19 +55,31 @@ async def book_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status = "binged" if info[1] == "b" else "started" if info[1] == "s" else "continued" if info[1] == "c" else "finished"
         
         # get percent read
-        percent_read = int(info[1]) 
-        
-        # calculate percent delta to insert
-        if status == "continued" or status == "finished":
-            logger.info("Sent query to calculate the percentage delta")
-            total_percent = send_query("SELECT SUM(percentage) OVER (PARTITION BY book_id ORDER BY date) FROM reading.books_log ORDER BY date desc LIMIT 1;")[0][0]
-            insert_percent = percent_read - int(total_percent)
-        else:
-            insert_percent = percent_read
+        percent_read = int(info[2]) 
 
         # get the book id
         book_id = send_query("SELECT book_id FROM reading.book WHERE title = %s;",(title,))[0][0]
         logger.info("Got the book_id")
+        
+        # calculate percent read this day 
+        # sums the percent for this book
+        # this assumes that there is only one book being read at a time
+        if status == "continued" or status == "finished":
+            logger.info("Sent query to calculate the percentage delta")
+            query = """
+                SELECT
+                    SUM(percentage) OVER (PARTITION BY book_id ORDER BY date)
+                FROM reading.books_log
+                WHERE book_id = %s AND date >= (
+                    SELECT date FROM reading.books_log WHERE status = 'started' ORDER BY date DESC LIMIT 1
+                    )
+                ORDER BY date DESC
+                LIMIT 1;
+            """
+            total_percent = send_query(query, (book_id,))[0][0]
+            insert_percent = percent_read - int(total_percent)
+        else:
+            insert_percent = percent_read
 
         # insert values into the log
         send_query(
@@ -86,6 +98,7 @@ async def book_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(type(e).__name__)
+        print(e)
         await update.message.reply_text("Something went wrong. Try again")
 
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
