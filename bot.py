@@ -16,12 +16,10 @@ def get_date():
 
     # If the current time is between 00:00 and 01:00, consider it as the previous day
     if now.hour < 1:
-        previous_day = now - timedelta(days=1)
+        return (now - timedelta(days=1)).date()
     else:
-        previous_day = now
+       return now.date()
 
-    # Extract the date part
-    return previous_day.date()
 
 def count_words_in_epub(path):
     book = epub.read_epub(path)
