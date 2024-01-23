@@ -1,14 +1,18 @@
-from config.settings import TELEGRAM_BOT_TOKEN
+import logging
+import os
+import ebooklib
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+from ebooklib import epub
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, filters, MessageHandler
+from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes,
+                          MessageHandler, filters)
+
+from config.settings import TELEGRAM_BOT_TOKEN
 from connect_db import send_query
 from logs.logging_config import get_logger
-from ebooklib import epub
-from bs4 import BeautifulSoup
-import logging
-import ebooklib
-import os
+from plots import close_plots, plot_report
+
 
 def get_date():
     # Get the current date and time
@@ -321,7 +325,40 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
             Input: title
             /show - process show data after watching some episodes
             Input: title; episode_number_start; episode_number_end; length; season; language
+            /report - get a graph of activity over a specified period of time
+            Input: type(reading / shows) period_length(today / num of days to report)
 """)
+
+async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Got a get report request")
+
+    try:
+        # takes two args: type("reading", "shows") and a time period("today" or a number of days, 7 for a week, and so on)
+        report_type = context.args[0]
+        period_arg = context.args[1]
+
+        # determine the start date 
+        if period_arg == "today":
+            start_date = get_date()
+        else:
+            start_date = (datetime.now() - timedelta(days=int(period_arg))).date()
+        
+        # create the plot
+        image_buffer = plot_report(report_type, start_date)
+
+        # send the plot as an image to the user
+        await update.message.reply_photo(photo=image_buffer)
+        
+        # close the buffer and the figure
+        close_plots()
+
+        logger.info("Report sent successfully")
+
+    except Exception as e:
+        logger.error(type(e).__name__)
+        await update.message.reply_text(f"Something went wrong. Try again. Error: {type(e).__name__}")
+
+
 
 if __name__ == "__main__":
     # set higher logging level for httpx to avoid all GET and POST requests being logged
@@ -335,30 +372,18 @@ if __name__ == "__main__":
     bot = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     logger.info("BOT STARTED")
 
-    # handler to process films
+    # handlers to process each command
     film_handler = CommandHandler("film", film)
-
-    # handler to check if a film exists
     check_film_handler = CommandHandler("check", check_film)
-
-    # handle epub 
     words_handler = MessageHandler(filters.ATTACHMENT, count_words)
-
-    # book handler
     book_handler = CommandHandler("book", book)
-
-    #handler to update book_log
     book_log_handler = CommandHandler("blog",book_log)
-
-    # handle book rating and comment
     end_book_handler = CommandHandler("book_end", book_end)
-
-    # handle shows input
     shows_handler = CommandHandler("show", show)
-
-    # help handler
     help_handler = CommandHandler("help",help)
+    report_handler = CommandHandler("report", get_report)
 
+    # add handelers to the bot
     bot.add_handler(book_log_handler)
     bot.add_handler(words_handler)
     bot.add_handler(book_handler)
@@ -367,5 +392,6 @@ if __name__ == "__main__":
     bot.add_handler(check_film_handler)
     bot.add_handler(help_handler)
     bot.add_handler(shows_handler)
+    bot.add_handler(report_handler)
 
     bot.run_polling()
